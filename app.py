@@ -8,7 +8,7 @@ app = Flask(__name__)
 
 
 def app_headers():
-    headers = {"Authorization": "Bearer {}".format(os.env.get("GH_TOKEN"))
+    headers = {"Authorization": "Bearer {}".format(os.environ.get("GH_TOKEN"))
                }
     return headers
 
@@ -33,6 +33,9 @@ def home():
     """
 
 
+IGNORE_EXTENSIONS = ["pyc"]
+
+
 @app.route("/embedding", methods=['GET'])
 def get_embedding():
     github_link = request.args.get("link")
@@ -42,28 +45,32 @@ def get_embedding():
     commit = github_link.split("/")[-1]
     github_api_url = f"https://api.github.com/repos/{owner}/{repo}/commits/{commit}"
     response = requests.get(github_api_url, headers=app_headers())
+    if response.status_code != 200:
+        return "<h1>GitHub Rate Limit</h1>"
     json_response = response.json()
 
+    parent_commit = None
     if len(json_response["parents"]) > 1:
         raise Exception("Length of parents is greater than 1")
-    elif len(json_response["parents"]) == 0:
-        raise Exception("TODO - handle the first commit")
-
-    parent = json_response["parents"][0]
-    parent_url = parent["url"]
-    parent_commit = requests.get(
-        parent_url, headers=app_headers()).json()["sha"]
+    elif len(json_response["parents"]) == 1:
+        parent = json_response["parents"][0]
+        parent_url = parent["url"]
+        parent_commit = requests.get(
+            parent_url, headers=app_headers()).json()["sha"]
 
     final_html = ""
     for file in json_response["files"]:
         filename = file['filename']
-        # todo handle case where previous file or current file doesn't exist
-        prev_commit_file_url = f"{file['contents_url'][:file['contents_url'].index('?ref=') + 5]}{parent_commit}"
+        if filename.split(".")[-1] in IGNORE_EXTENSIONS:
+            continue
+        prev_file_response = None
+        if parent_commit:
+            prev_commit_file_url = f"{file['contents_url'][:file['contents_url'].index('?ref=') + 5]}{parent_commit}"
+            prev_file_response = requests.get(
+                prev_commit_file_url, headers=app_headers())
         current_commit_file_url = file["contents_url"]
-        prev_file_response = requests.get(
-            prev_commit_file_url, headers=app_headers())
         prev_file_contents = ""
-        if prev_file_response.status_code == 200:
+        if prev_file_response and prev_file_response.status_code == 200:
             prev_file_contents = base64.b64decode(
                 prev_file_response.json()["content"]).decode("utf-8")
 
