@@ -22,7 +22,7 @@ def home():
     <html>
         <script>
             function redirect(){       
-                window.location.href="http://127.0.0.1:5000/embedding?link=" + document.getElementById("githubLink").value;              
+                window.location.href="http://" + window.location.host + "/embedding?link=" + document.getElementById("githubLink").value;              
             }
         </script>
         <form onsubmit="redirect(); return false;" method="get" action="">  
